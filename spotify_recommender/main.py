@@ -3,6 +3,8 @@ import configparser
 import pandas as pd
 import spotipy
 import spotipy.util as util
+from sklearn.cluster import KMeans
+from sklearn.preprocessing import StandardScaler
 
 config = configparser.ConfigParser()
 config.read(os.path.join(os.path.dirname(__file__), 'config.ini'))
@@ -14,7 +16,7 @@ redirect_uri = config['CLIENT']['redirect_uri']
 
 
 def get_user_top_tracks(sp, period='all'):
-    cols = ['id', 'album', 'name', 'artist', 'popularity']
+    cols = ['id', 'album', 'name', 'artist_id', 'artist',  'popularity']
     top_tracks = []
 
     if period == 'all':
@@ -33,10 +35,11 @@ def get_user_top_tracks(sp, period='all'):
                 track_id = track['id']
                 album_name = track['album']['name']
                 artist_name = track['artists'][0]['name']
+                artist_id = track['artists'][0]['id']
                 track_name = track['name']
                 popularity = track['popularity']
 
-                top_tracks.append((track_id, album_name, artist_name, track_name, popularity,))
+                top_tracks.append((track_id, album_name, artist_name, artist_id, track_name, popularity,))
 
     return pd.DataFrame(top_tracks, columns=cols)
 
@@ -75,7 +78,7 @@ token = util.prompt_for_user_token(user_name,
 if token:
     sp = spotipy.Spotify(auth=token)
     # 取得每首歌的歌曲資訊
-    top_track_df = get_user_top_tracks(sp, period='all')
+    top_track_df = get_user_top_tracks(sp, period='all').drop_duplicates()
     print('You have {} top songs'.format(len(top_track_df)))
 
     # 使用id取得每首歌的音樂特徵值
@@ -84,5 +87,14 @@ if token:
     # 合併歌曲資訊與音樂特徵值
     df = pd.merge(top_track_df, feature_df, on='id', how='left')
 
+    # artists = sp.artists(top_track_df['artist_id'].unique().tolist())
+
+    train_df = df.drop(['album', 'name', 'artist', 'popularity'], axis=1).set_index('id')
+
+    scaler = StandardScaler()
+    train_scaled_df = scaler.fit_transform(train_df)
+    kmean = KMeans()
+    df['cluster'] = kmean.fit_predict(train_scaled_df)
+    # print(kmean)
 else:
     print("Can't get token for", username)
