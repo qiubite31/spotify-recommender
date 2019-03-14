@@ -13,33 +13,39 @@ client_secret = config['CLIENT']['client_secret']
 redirect_uri = config['CLIENT']['redirect_uri']
 
 
-def get_user_top_tracks(sp, period='all'):
+def extract_track_info(items):
     cols = ['id', 'album', 'name', 'artist_id', 'artist', 'popularity']
-    top_tracks = []
+    tracks = []
+    for track in items:
+        track_id = track['id']
+        album_name = track['album']['name']
+        artist_name = track['artists'][0]['name']
+        artist_id = track['artists'][0]['id']
+        track_name = track['name']
+        popularity = track['popularity']
+
+        tracks.append((track_id, album_name, artist_name, artist_id, track_name, popularity,))
+
+    return pd.DataFrame(tracks, columns=cols)
+
+
+def get_user_top_tracks(sp, period='all'):
 
     if period == 'all':
         time_ranges = ('long_term', 'medium_term', 'short_term',)
     else:
         time_ranges = (period,)
 
+    all_tracks = []
     for time_range in time_ranges:
         offsets = (0, 49, )
         for offset in offsets:
             result = sp.current_user_top_tracks(limit=50,
                                                 offset=offset,
                                                 time_range=time_range)
-            tracks = result['items']
-            for track in tracks:
-                track_id = track['id']
-                album_name = track['album']['name']
-                artist_name = track['artists'][0]['name']
-                artist_id = track['artists'][0]['id']
-                track_name = track['name']
-                popularity = track['popularity']
+            all_tracks = all_tracks + result['items']
 
-                top_tracks.append((track_id, album_name, artist_name, artist_id, track_name, popularity,))
-
-    return pd.DataFrame(top_tracks, columns=cols)
+    return extract_track_info(all_tracks)
 
 
 def get_audio_features(sp, trackids):
@@ -76,14 +82,29 @@ token = util.prompt_for_user_token(user_name,
 if token:
     sp = spotipy.Spotify(auth=token)
     # 取得每首歌的歌曲資訊
-    top_track_df = get_user_top_tracks(sp, period='all').drop_duplicates()
-    print('You have {} top songs'.format(len(top_track_df)))
+    user_top_track_df = get_user_top_tracks(sp, period='all').drop_duplicates()
+    print('You have {} top songs'.format(len(user_top_track_df)))
 
     # 使用id取得每首歌的音樂特徵值
-    feature_df = get_audio_features(sp, top_track_df['id'].tolist())
+    feature_df = get_audio_features(sp, user_top_track_df['id'].tolist())
 
     # 合併歌曲資訊與音樂特徵值
-    df = pd.merge(top_track_df, feature_df, on='id', how='left')
+    user_track_df = pd.merge(user_top_track_df, feature_df, on='id', how='left')
+
+    playlists = sp.search(q='台灣流行樂', type='playlist')['playlists']['items']
+    for playlist in playlists:
+        if playlist['name'] == '台灣流行樂' and \
+            playlist['owner']['display_name'] == 'Spotify':
+            playlist_id = playlist['id']
+            owner_id = playlist['owner']['id']
+            break
+
+    track_items = sp.user_playlist(owner_id, playlist_id)['tracks']['items']
+    track_items = [item['track'] for item in track_items]
+    tw_track_df = extract_track_info(track_items)
+
+    tw_track_feature_df = get_audio_features(sp, tw_track_df['id'].tolist())
+    tw_track_df = pd.merge(tw_track_df, tw_track_feature_df, on='id', how='left')
 
 else:
     print("Can't get token for", username)
