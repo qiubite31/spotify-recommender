@@ -14,7 +14,7 @@ redirect_uri = config['CLIENT']['redirect_uri']
 
 
 def get_user_top_tracks(sp, period='all'):
-    cols = ['id', 'album', 'name', 'artist', 'popularity']
+    cols = ['id', 'album', 'name', 'artist_id', 'artist', 'popularity']
     top_tracks = []
 
     if period == 'all':
@@ -33,10 +33,11 @@ def get_user_top_tracks(sp, period='all'):
                 track_id = track['id']
                 album_name = track['album']['name']
                 artist_name = track['artists'][0]['name']
+                artist_id = track['artists'][0]['id']
                 track_name = track['name']
                 popularity = track['popularity']
 
-                top_tracks.append((track_id, album_name, artist_name, track_name, popularity,))
+                top_tracks.append((track_id, album_name, artist_name, artist_id, track_name, popularity,))
 
     return pd.DataFrame(top_tracks, columns=cols)
 
@@ -75,7 +76,7 @@ token = util.prompt_for_user_token(user_name,
 if token:
     sp = spotipy.Spotify(auth=token)
     # 取得每首歌的歌曲資訊
-    top_track_df = get_user_top_tracks(sp, period='all')
+    top_track_df = get_user_top_tracks(sp, period='all').drop_duplicates()
     print('You have {} top songs'.format(len(top_track_df)))
 
     # 使用id取得每首歌的音樂特徵值
