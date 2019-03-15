@@ -14,7 +14,7 @@ redirect_uri = config['CLIENT']['redirect_uri']
 
 
 def extract_track_info(items):
-    cols = ['id', 'album', 'name', 'artist_id', 'artist', 'popularity']
+    cols = ['id', 'album', 'artist', 'artist_id', 'name', 'popularity']
     tracks = []
     for track in items:
         track_id = track['id']
@@ -87,22 +87,24 @@ if token:
 
     # 使用id取得每首歌的音樂特徵值
     feature_df = get_audio_features(sp, user_top_track_df['id'].tolist())
-
     # 合併歌曲資訊與音樂特徵值
     user_track_df = pd.merge(user_top_track_df, feature_df, on='id', how='left')
 
-    playlists = sp.search(q='台灣流行樂', type='playlist')['playlists']['items']
+    keyword = '台灣流行樂'
+    owner = 'Spotify'
+    playlists = sp.search(q=keyword, type='playlist')['playlists']['items']
     for playlist in playlists:
-        if playlist['name'] == '台灣流行樂' and \
-            playlist['owner']['display_name'] == 'Spotify':
+        if playlist['name'] == keyword and \
+            playlist['owner']['display_name'] == owner:
             playlist_id = playlist['id']
             owner_id = playlist['owner']['id']
             break
 
+    # 取得待推薦的歌曲清單
     track_items = sp.user_playlist(owner_id, playlist_id)['tracks']['items']
     track_items = [item['track'] for item in track_items]
     tw_track_df = extract_track_info(track_items)
-
+    # 取得特徵值並合住
     tw_track_feature_df = get_audio_features(sp, tw_track_df['id'].tolist())
     tw_track_df = pd.merge(tw_track_df, tw_track_feature_df, on='id', how='left')
 
