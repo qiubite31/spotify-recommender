@@ -1,8 +1,10 @@
 import os
 import configparser
 import pandas as pd
+import numpy as np
 import spotipy
 import spotipy.util as util
+from sklearn.preprocessing import StandardScaler
 
 config = configparser.ConfigParser()
 config.read(os.path.join(os.path.dirname(__file__), 'config.ini'))
@@ -108,5 +110,15 @@ if token:
     tw_track_feature_df = get_audio_features(sp, tw_track_df['id'].tolist())
     tw_track_df = pd.merge(tw_track_df, tw_track_feature_df, on='id', how='left')
 
+    # 將user向量和item向量合併作rescale並計算相似度
+    user_vec = user_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms'], axis=1).set_index('id').mean().as_matrix()
+
+    item_vec = tw_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms'], axis=1).set_index('id').as_matrix()
+
+    scaler = StandardScaler()
+    scaled_matrix = scaler.fit_transform(np.append(user_vec, item_vec).reshape(101, 12))
+    user_vec, item_vec = scaled_matrix[0], scaled_matrix[1:]
+    sim_vec = np.linalg.norm(item_vec-user_vec, ord=2, axis=1)
+    tw_track_df['SCORE'] = sim_vec
 else:
     print("Can't get token for", username)
