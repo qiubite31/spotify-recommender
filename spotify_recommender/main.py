@@ -119,6 +119,27 @@ if token:
     scaled_matrix = scaler.fit_transform(np.append(user_vec, item_vec).reshape(101, 12))
     user_vec, item_vec = scaled_matrix[0], scaled_matrix[1:]
     sim_vec = np.linalg.norm(item_vec-user_vec, ord=2, axis=1)
-    tw_track_df['SCORE'] = sim_vec
+    tw_track_df['Score'] = sim_vec
+    tw_track_df = tw_track_df.sort_values('Score', ascending=False)
+    add_tracks = tw_track_df.iloc[:10]['id'].tolist()
+else:
+    print("Can't get token for", username)
+
+token = util.prompt_for_user_token(user_name,
+                                   scope='playlist-modify-public',
+                                   client_id=client_id,
+                                   client_secret=client_secret,
+                                   redirect_uri=redirect_uri)
+if token:
+    splist = spotipy.Spotify(auth=token)
+
+    user_id = sp.current_user()['id']
+    splist.user_playlist_create(user_id, 'Recommendation', public=True)
+    for list in sp.current_user_playlists(limit=50)['items']:
+        if list['name'] == 'Recommendation':
+            list_id = list['id']
+            break
+
+    splist.user_playlist_add_tracks(user_id, list_id, add_tracks, position=None)
 else:
     print("Can't get token for", username)
