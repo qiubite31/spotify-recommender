@@ -134,12 +134,21 @@ if token:
     splist = spotipy.Spotify(auth=token)
 
     user_id = sp.current_user()['id']
-    splist.user_playlist_create(user_id, 'Recommendation', public=True)
+    # 搜尋是否推薦清單已存在
+    is_create = False
     for list in sp.current_user_playlists(limit=50)['items']:
         if list['name'] == 'Recommendation':
             list_id = list['id']
+            is_create = True
+            rm_tracks = [track['track']['id'] for track in sp.user_playlist_tracks(user_id, list_id)['items']]
             break
 
+    if is_create:
+        splist.user_playlist_remove_all_occurrences_of_tracks(user_id, list_id, rm_tracks)
+    else:
+        splist.user_playlist_create(user_id, 'Recommendation', public=True)
+
     splist.user_playlist_add_tracks(user_id, list_id, add_tracks, position=None)
+
 else:
     print("Can't get token for", username)
