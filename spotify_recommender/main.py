@@ -89,6 +89,23 @@ def get_audio_features(sp, trackids):
     return feature_df
 
 
+def get_recommendate_tracks(user_track_df, tw_track_df):
+    # 將user向量和item向量合併作rescale並計算相似度
+    user_vec = user_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms'], axis=1).set_index('id').mean().as_matrix()
+
+    item_vec = tw_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms'], axis=1).set_index('id').as_matrix()
+
+    scaler = StandardScaler()
+    scaled_matrix = scaler.fit_transform(np.append(user_vec, item_vec).reshape(101, 12))
+    user_vec, item_vec = scaled_matrix[0], scaled_matrix[1:]
+    sim_vec = np.linalg.norm(item_vec-user_vec, ord=2, axis=1)
+    tw_track_df['Score'] = sim_vec
+    tw_track_df = tw_track_df.sort_values('Score', ascending=False)
+    add_tracks = tw_track_df.iloc[:10]['id'].tolist()
+
+    return add_tracks
+
+
 if __name__ == "__main__":
 
     sp = get_authorized_client('user-top-read', **auth_info)
@@ -115,25 +132,13 @@ if __name__ == "__main__":
     track_items = sp.user_playlist(owner_id, playlist_id)['tracks']['items']
     track_items = [item['track'] for item in track_items]
     tw_track_df = extract_track_info(track_items)
-    # 取得特徵值並合住
+    # 取得特徵值並合併
     tw_track_feature_df = get_audio_features(sp, tw_track_df['id'].tolist())
     tw_track_df = pd.merge(tw_track_df, tw_track_feature_df, on='id', how='left')
 
-    # 將user向量和item向量合併作rescale並計算相似度
-    user_vec = user_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms'], axis=1).set_index('id').mean().as_matrix()
-
-    item_vec = tw_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms'], axis=1).set_index('id').as_matrix()
-
-    scaler = StandardScaler()
-    scaled_matrix = scaler.fit_transform(np.append(user_vec, item_vec).reshape(101, 12))
-    user_vec, item_vec = scaled_matrix[0], scaled_matrix[1:]
-    sim_vec = np.linalg.norm(item_vec-user_vec, ord=2, axis=1)
-    tw_track_df['Score'] = sim_vec
-    tw_track_df = tw_track_df.sort_values('Score', ascending=False)
-    add_tracks = tw_track_df.iloc[:10]['id'].tolist()
+    add_tracks = get_recommendate_tracks(user_track_df, tw_track_df)
 
     splist = get_authorized_client('playlist-modify-public', **auth_info)
-
     user_id = sp.current_user()['id']
     # 搜尋是否推薦清單已存在
     is_list_create = False
