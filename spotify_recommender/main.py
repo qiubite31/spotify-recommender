@@ -136,7 +136,23 @@ if __name__ == "__main__":
     tw_track_feature_df = get_audio_features(sp, tw_track_df['id'].tolist())
     tw_track_df = pd.merge(tw_track_df, tw_track_feature_df, on='id', how='left')
 
-    add_tracks = get_recommendate_tracks(user_track_df, tw_track_df)
+    user_vec = user_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms'], axis=1).set_index('id').as_matrix()
+    item_vec = tw_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms'], axis=1).set_index('id').as_matrix()
+
+    scaler = StandardScaler()
+    scaled_matrix = scaler.fit_transform(np.append(user_vec, item_vec).reshape(len(user_track_df)+100, 12))
+
+    user_vec, item_vec = scaled_matrix[:len(user_track_df)], scaled_matrix[len(user_track_df):]
+
+    vote_tracks = []
+    for idx in range(len(user_track_df)):
+        sim_vec = np.linalg.norm(item_vec-user_vec[idx], ord=2, axis=1)
+        top10_tracks = pd.Series(sim_vec, index=tw_track_df['id']).sort_values(ascending=False)[:10].index.tolist()
+        vote_tracks += top10_tracks
+
+    from collections import Counter
+    vote_tracks_count = Counter(vote_tracks)
+    add_tracks = [track[0] for track in vote_tracks_count.most_common(10)]
 
     splist = get_authorized_client('playlist-modify-public', **auth_info)
     user_id = sp.current_user()['id']
