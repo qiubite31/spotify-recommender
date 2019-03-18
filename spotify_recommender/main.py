@@ -65,6 +65,18 @@ def get_user_top_tracks(sp, period='all'):
     return extract_track_info(all_tracks)
 
 
+def get_user_saved_track(sp):
+    total_saved_track = sp.current_user_saved_tracks(limit=1)['total']
+    all_tracks = []
+    offset = 0
+
+    while len(all_tracks) < total_saved_track:
+        result = sp.current_user_saved_tracks(limit=50, offset=offset)['items']
+        all_tracks += [item['track'] for item in result]
+        offset += 49
+
+    return extract_track_info(all_tracks)
+
 def get_audio_features(sp, trackids):
     cols = ['acousticness', 'danceability', 'duration_ms', 'energy',
             'instrumentalness', 'key', 'liveness', 'loudness', 'mode',
@@ -91,9 +103,9 @@ def get_audio_features(sp, trackids):
 
 def get_recommended_by_user_profile(user_track_df, tw_track_df):
     # 將user向量和item向量合併作rescale並計算相似度
-    user_vec = user_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms'], axis=1).set_index('id').mean().as_matrix()
+    user_vec = user_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature'], axis=1).set_index('id').mean().as_matrix()
 
-    item_vec = tw_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms'], axis=1).set_index('id').as_matrix()
+    item_vec = tw_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature'], axis=1).set_index('id').as_matrix()
 
     scaler = StandardScaler()
     scaled_matrix = scaler.fit_transform(np.append(user_vec, item_vec).reshape(101, 12))
@@ -118,7 +130,7 @@ def get_recommended_by_all_top_tracks(user_track_df, tw_track_df):
     vote_tracks = []
     for idx in range(len(user_track_df)):
         sim_vec = np.linalg.norm(item_vec-user_vec[idx], ord=2, axis=1)
-        top10_tracks = pd.Series(sim_vec, index=tw_track_df['id']).sort_values(ascending=False)[:10].index.tolist()
+        top10_tracks = pd.Series(sim_vec, index=tw_track_df['id']).sort_values(ascending=True)[:10].index.tolist()
         vote_tracks += top10_tracks
 
     from collections import Counter
@@ -150,13 +162,15 @@ if __name__ == "__main__":
 
     sp = get_authorized_client('user-top-read', **auth_info)
     # 取得每首歌的歌曲資訊
-    user_top_track_df = get_user_top_tracks(sp, period='all').drop_duplicates()
-    print('You have {} top songs'.format(len(user_top_track_df)))
+    # user_track_df = get_user_top_tracks(sp, period='all').drop_duplicates()
+    splib = get_authorized_client('user-library-read', **auth_info)
+    user_track_df = get_user_saved_track(splib)
+    print('You have {} top songs'.format(len(user_track_df)))
 
     # 使用id取得每首歌的音樂特徵值
-    feature_df = get_audio_features(sp, user_top_track_df['id'].tolist())
+    feature_df = get_audio_features(sp, user_track_df['id'].tolist())
     # 合併歌曲資訊與音樂特徵值
-    user_track_df = pd.merge(user_top_track_df, feature_df, on='id', how='left')
+    user_track_df = pd.merge(user_track_df, feature_df, on='id', how='left').drop_duplicates()
 
     keyword = '台灣流行樂'
     owner = 'Spotify'
@@ -174,7 +188,7 @@ if __name__ == "__main__":
     tw_track_df = extract_track_info(track_items)
     # 取得特徵值並合併
     tw_track_feature_df = get_audio_features(sp, tw_track_df['id'].tolist())
-    tw_track_df = pd.merge(tw_track_df, tw_track_feature_df, on='id', how='left')
+    tw_track_df = pd.merge(tw_track_df, tw_track_feature_df, on='id', how='left').drop_duplicates()
 
     add_tracks = get_recommended_by_all_top_tracks(user_track_df, tw_track_df)
 
