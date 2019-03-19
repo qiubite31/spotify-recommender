@@ -108,11 +108,11 @@ def get_recommended_by_user_profile(user_track_df, tw_track_df):
     item_vec = tw_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature'], axis=1).set_index('id').as_matrix()
 
     scaler = StandardScaler()
-    scaled_matrix = scaler.fit_transform(np.append(user_vec, item_vec).reshape(101, 12))
+    scaled_matrix = scaler.fit_transform(np.append(user_vec, item_vec).reshape(len(item_vec)+1, len(user_vec)))
     user_vec, item_vec = scaled_matrix[0], scaled_matrix[1:]
     sim_vec = np.linalg.norm(item_vec-user_vec, ord=2, axis=1)
     tw_track_df['Score'] = sim_vec
-    tw_track_df = tw_track_df.sort_values('Score', ascending=False)
+    tw_track_df = tw_track_df.sort_values('Score', ascending=True)
     add_tracks = tw_track_df.iloc[:10]['id'].tolist()
 
     return add_tracks
@@ -190,7 +190,7 @@ if __name__ == "__main__":
     tw_track_feature_df = get_audio_features(sp, tw_track_df['id'].tolist())
     tw_track_df = pd.merge(tw_track_df, tw_track_feature_df, on='id', how='left').drop_duplicates()
 
-    add_tracks = get_recommended_by_all_top_tracks(user_track_df, tw_track_df)
+    add_tracks = get_recommended_by_user_profile(user_track_df, tw_track_df)
 
     splist = get_authorized_client('playlist-modify-public', **auth_info)
     user_id = sp.current_user()['id']
