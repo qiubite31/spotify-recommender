@@ -1,4 +1,6 @@
 import pandas as pd
+import numpy as np
+from sklearn.preprocessing import StandardScaler
 
 
 class TrackContentBasedFiltering:
@@ -133,8 +135,53 @@ class TrackContentBasedFiltering:
 
         return item_track_df
 
+    def _recommend_by_user_profile(self, user_track_df, tw_track_df):
+        # 將user向量和item向量合併作rescale並計算相似度
+        user_vec = user_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature'], axis=1).set_index('id').mean().as_matrix()
+
+        item_vec = tw_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature'], axis=1).set_index('id').as_matrix()
+
+        scaler = StandardScaler()
+        scaled_matrix = scaler.fit_transform(np.append(user_vec, item_vec).reshape(len(item_vec)+1, len(user_vec)))
+        user_vec, item_vec = scaled_matrix[0], scaled_matrix[1:]
+        sim_vec = np.linalg.norm(item_vec-user_vec, ord=2, axis=1)
+        tw_track_df['Score'] = sim_vec
+
+        tw_track_df = tw_track_df.sort_values('Score', ascending=True)
+        add_tracks = tw_track_df.iloc[:10]['id'].tolist()
+
+        return add_tracks
+
+    def _recommend_by_all_tracks(self, user_track_df, tw_track_df):
+        user_vec = user_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms'], axis=1).set_index('id').as_matrix()
+        item_vec = tw_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms'], axis=1).set_index('id').as_matrix()
+
+        scaler = StandardScaler()
+        scaled_matrix = scaler.fit_transform(np.append(user_vec, item_vec).reshape(len(user_track_df)+100, 12))
+
+        user_vec, item_vec = scaled_matrix[:len(user_track_df)], scaled_matrix[len(user_track_df):]
+
+        vote_tracks = []
+        for idx in range(len(user_track_df)):
+            sim_vec = np.linalg.norm(item_vec-user_vec[idx], ord=2, axis=1)
+            top10_tracks = pd.Series(sim_vec, index=tw_track_df['id']).sort_values(ascending=True)[:10].index.tolist()
+            vote_tracks += top10_tracks
+
+        from collections import Counter
+        vote_tracks_count = Counter(vote_tracks)
+        recommended_tracks = [track[0] for track in vote_tracks_count.most_common(10)]
+
+        return recommended_tracks
+
     def recommend(self):
         user_track_df = self._get_user_track()
         item_track_df = self._get_item_track()
 
-        return user_track_df, item_track_df
+        if self.user_content == 'profile':
+            recommended_tracks = self._recommend_by_user_profile(user_track_df, item_track_df)
+        elif self.user_content == 'track':
+            recommended_tracks = self._recommend_by_user_profile(user_track_df, item_track_df)
+        else:
+            pass
+
+        return recommended_tracks
