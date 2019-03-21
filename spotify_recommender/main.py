@@ -30,13 +30,11 @@ if __name__ == "__main__":
     playlist_name = 'Recommendation'
     track = TrackContentBasedFiltering(auth,
                                        user_track_source='saved_track',
-                                       user_content='profile',
+                                       user_content='track',
                                        item_track_source='playlist',
                                        query_info=query_info)
 
-    recommended_tracks = track.recommend()
+    recommended_tracks = track.recommend(num=20)
 
     sp = auth.get_authorized_client('playlist-modify-public')
-    user_id = sp.current_user()['id']
-
-    refresh_recommended_playlist(sp, user_id, playlist_name, recommended_tracks)
+    refresh_recommended_playlist(sp, auth_info['user_name'], playlist_name, recommended_tracks)
