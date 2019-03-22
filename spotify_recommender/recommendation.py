@@ -128,6 +128,7 @@ class TrackContentBasedFiltering:
         track_items = [item['track'] for item in track_items]
         item_track_df = self._extract_track_info(track_items)
         # 取得特徵值並合併
+        item_track_df = item_track_df.sample(n=int(len(item_track_df)*0.5), random_state=pd.Timestamp.now().dayofyear)
         tw_track_feature_df = self._get_audio_features(sp, item_track_df['id'].tolist())
         item_track_df = pd.merge(item_track_df,
                                  tw_track_feature_df,

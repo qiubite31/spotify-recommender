@@ -34,7 +34,7 @@ if __name__ == "__main__":
                                        item_track_source='playlist',
                                        query_info=query_info)
 
-    recommended_tracks = track.recommend(num=20)
+    recommended_tracks = track.recommend(num=10)
 
     sp = auth.get_authorized_client('playlist-modify-public')
     refresh_recommended_playlist(sp, auth_info['user_name'], playlist_name, recommended_tracks)
