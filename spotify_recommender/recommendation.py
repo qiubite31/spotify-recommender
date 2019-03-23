@@ -6,12 +6,12 @@ from sklearn.preprocessing import StandardScaler
 class TrackContentBasedFiltering:
     def __init__(self, auth_obj,
                  user_track_source='saved_track', user_content='profile',
-                 item_track_source='playlist', query_info=None):
+                 item_track_source='playlist', querys=None):
         self.auth_obj = auth_obj
         self.user_track_source = user_track_source
         self.user_content = user_content
         self.item_track_source = item_track_source
-        self.query_info = query_info
+        self.querys = querys
         self.spotify_clients = self._authorization()
 
     def _authorization(self):
@@ -112,23 +112,26 @@ class TrackContentBasedFiltering:
         return user_track_df
 
     def _get_item_track(self):
+        tracks = []
         sp = list(self.spotify_clients.values())[0]
-        keyword = self.query_info['keyword']
-        owner = self.query_info['owner']
+        for query in self.querys:
+            keyword = query['keyword']
+            owner = query['owner']
 
-        playlists = sp.search(q=keyword, type='playlist')['playlists']['items']
-        for playlist in playlists:
-            if playlist['name'] == keyword and playlist['owner']['display_name'] == owner:
-                playlist_id = playlist['id']
-                owner_id = playlist['owner']['id']
-                break
+            playlists = sp.search(q=keyword, type='playlist')['playlists']['items']
+            for playlist in playlists:
+                if playlist['name'] == keyword and playlist['owner']['display_name'] == owner:
+                    playlist_id = playlist['id']
+                    owner_id = playlist['owner']['id']
+                    break
 
-        # 取得待推薦的歌曲清單
-        track_items = sp.user_playlist(owner_id, playlist_id)['tracks']['items']
-        track_items = [item['track'] for item in track_items]
-        item_track_df = self._extract_track_info(track_items)
+            # 取得待推薦的歌曲清單
+            track_items = sp.user_playlist(owner_id, playlist_id)['tracks']['items']
+            tracks += [item['track'] for item in track_items]
+
+        item_track_df = self._extract_track_info(tracks).drop_duplicates()
         # 取得特徵值並合併
-        item_track_df = item_track_df.sample(n=int(len(item_track_df)*0.5), random_state=pd.Timestamp.now().dayofyear)
+        item_track_df = item_track_df.sample(n=int(len(item_track_df)*0.5), random_state=42)
         tw_track_feature_df = self._get_audio_features(sp, item_track_df['id'].tolist())
         item_track_df = pd.merge(item_track_df,
                                  tw_track_feature_df,
