@@ -2,6 +2,15 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 
+DEFAULT_QUERYS = [{'keyword': '台灣流行樂',
+                   'owner': 'Spotify'},
+                  {'keyword': '潛力新聲',
+                   'owner': 'Spotify'},
+                  {'keyword': '最Hit華語榜',
+                   'owner': 'Spotify'},
+                  {'keyword': '華語金曲榜',
+                   'owner': 'Spotify'}]
+
 
 class TrackContentBasedFiltering:
 
@@ -10,7 +19,7 @@ class TrackContentBasedFiltering:
         self.auth_obj = auth_obj
         self.user_track_source = user_track_source
         self.user_content = user_content
-        self.querys = querys
+        self.querys = querys if querys else DEFAULT_QUERYS
         self.spotify_clients = self._authorization()
 
     def _authorization(self):

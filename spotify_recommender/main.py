@@ -24,20 +24,10 @@ if __name__ == "__main__":
 
     auth = SpotifyClientAuthorization(**auth_info)
 
-    querys = [{'keyword': '台灣流行樂',
-               'owner': 'Spotify'},
-              {'keyword': '潛力新聲',
-               'owner': 'Spotify'},
-              {'keyword': '最Hit華語榜',
-               'owner': 'Spotify'},
-              {'keyword': '華語金曲榜',
-               'owner': 'Spotify'}]
-
     playlist_name = 'Recommendation'
     recommender = TrackContentBasedFiltering(auth,
                                              user_track_source='saved_track',
-                                             user_content='track',
-                                             querys=querys)
+                                             user_content='track')
 
     recommended_tracks = recommender.recommend(num=10)
 
