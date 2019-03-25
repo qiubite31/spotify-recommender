@@ -33,15 +33,13 @@ if __name__ == "__main__":
               {'keyword': '華語金曲榜',
                'owner': 'Spotify'}]
 
-
     playlist_name = 'Recommendation'
-    track = TrackContentBasedFiltering(auth,
-                                       user_track_source='saved_track',
-                                       user_content='track',
-                                       item_track_source='playlist',
-                                       querys=querys)
+    recommender = TrackContentBasedFiltering(auth,
+                                             user_track_source='saved_track',
+                                             user_content='track',
+                                             querys=querys)
 
-    recommended_tracks = track.recommend(num=10)
+    recommended_tracks = recommender.recommend(num=10)
 
     sp = auth.get_authorized_client('playlist-modify-public')
     refresh_recommended_playlist(sp, auth_info['user_name'], playlist_name, recommended_tracks)

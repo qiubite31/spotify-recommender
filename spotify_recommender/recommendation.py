@@ -4,13 +4,12 @@ from sklearn.preprocessing import StandardScaler
 
 
 class TrackContentBasedFiltering:
-    def __init__(self, auth_obj,
-                 user_track_source='saved_track', user_content='profile',
-                 item_track_source='playlist', querys=None):
+
+    def __init__(self, auth_obj, user_track_source='saved_track',
+                 user_content='profile', querys=None):
         self.auth_obj = auth_obj
         self.user_track_source = user_track_source
         self.user_content = user_content
-        self.item_track_source = item_track_source
         self.querys = querys
         self.spotify_clients = self._authorization()
 
@@ -131,7 +130,7 @@ class TrackContentBasedFiltering:
 
         item_track_df = self._extract_track_info(tracks).drop_duplicates()
         # 取得特徵值並合併
-        item_track_df = item_track_df.sample(n=int(len(item_track_df)*0.5), random_state=42)
+        item_track_df = item_track_df.sample(n=int(len(item_track_df)*0.5), random_state=pd.Timestamp.now().dayofyear)
         tw_track_feature_df = self._get_audio_features(sp, item_track_df['id'].tolist())
         item_track_df = pd.merge(item_track_df,
                                  tw_track_feature_df,
