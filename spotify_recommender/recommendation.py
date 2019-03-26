@@ -34,7 +34,7 @@ class TrackContentBasedFiltering:
         return clients
 
     def _extract_track_info(self, items):
-        """Extrack traco information"""
+        """Extract track information"""
         cols = ['id', 'album', 'artist', 'artist_id', 'name', 'popularity']
         tracks = []
         for track in items:
@@ -50,57 +50,53 @@ class TrackContentBasedFiltering:
         return pd.DataFrame(tracks, columns=cols)
 
     def _get_user_top_tracks(self, sp, period='all'):
-        """Get user top tracks list"""
+        """Get user top tracks"""
+
         if period == 'all':
             time_ranges = ('long_term', 'medium_term', 'short_term',)
         else:
             time_ranges = (period,)
 
-        all_tracks = []
+        top_tracks = []
         for time_range in time_ranges:
             offsets = (0, 49, )
             for offset in offsets:
                 result = sp.current_user_top_tracks(limit=50,
                                                     offset=offset,
                                                     time_range=time_range)
-                all_tracks = all_tracks + result['items']
+                top_tracks = tracks + result['items']
 
-        return self._extract_track_info(all_tracks)
+        return self._extract_track_info(top_tracks)
 
     def _get_user_saved_track(self, sp):
         total_saved_track = sp.current_user_saved_tracks(limit=1)['total']
-        all_tracks = []
+        saved_tracks = []
         offset = 0
 
-        while len(all_tracks) < total_saved_track:
+        while len(saved_tracks) < total_saved_track:
             result = sp.current_user_saved_tracks(limit=50, offset=offset)['items']
-            all_tracks += [item['track'] for item in result]
+            saved_tracks += [item['track'] for item in result]
             offset += 49
 
-        return self._extract_track_info(all_tracks)
+        return self._extract_track_info(saved_tracks)
 
     def _get_audio_features(self, sp, trackids):
+        """Get all track's feature"""
+
         cols = ['acousticness', 'danceability', 'duration_ms', 'energy',
                 'instrumentalness', 'key', 'liveness', 'loudness', 'mode',
                 'speechiness', 'tempo', 'time_signature', 'valence', 'id']
 
-        feature_df = pd.DataFrame()
-
+        total_track = len(trackids)
+        features = []
         start = 0
-        while len(feature_df) < len(trackids):
-            end = start + 100 if start + 100 < len(trackids) else len(trackids)
+        while len(features) < total_track:
+            end = start + 100 if start + 100 < total_track else total_track
 
-            feature_obj = sp.audio_features(tracks=trackids[start: end])
-            feature_obj_df = pd.DataFrame.from_records(feature_obj, columns=cols)
-
-            if len(feature_df) == 0:
-                feature_df = feature_obj_df
-            else:
-                feature_df = feature_df.append(feature_obj_df, ignore_index=True)
-
+            features += sp.audio_features(tracks=trackids[start: end])
             start = start + 100
 
-        return feature_df
+        return pd.DataFrame.from_records(features, columns=cols)
 
     def _get_user_track(self):
         if self.user_track_source == 'top_track':
@@ -113,9 +109,8 @@ class TrackContentBasedFiltering:
             pass
 
         feature_df = self._get_audio_features(sp, user_track_df['id'].tolist())
-        user_track_df = pd.merge(user_track_df,
-                                 feature_df,
-                                 on='id', how='left').drop_duplicates()
+        user_track_df = pd.merge(user_track_df, feature_df, on='id', how='left')
+        user_track_df = user_track_df.drop_duplicates()
 
         return user_track_df
 
