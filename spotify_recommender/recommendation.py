@@ -116,6 +116,7 @@ class TrackContentBasedFiltering:
 
     def _get_item_track(self):
         tracks = []
+        # Use any client to retrieve search result
         sp = list(self.spotify_clients.values())[0]
         for query in self.querys:
             keyword = query['keyword']
@@ -128,52 +129,76 @@ class TrackContentBasedFiltering:
                     owner_id = playlist['owner']['id']
                     break
 
-            # 取得待推薦的歌曲清單
+            # Get candidate track list
             track_items = sp.user_playlist(owner_id, playlist_id)['tracks']['items']
             tracks += [item['track'] for item in track_items]
 
         item_track_df = self._extract_track_info(tracks).drop_duplicates()
-        # 取得特徵值並合併
-        item_track_df = item_track_df.sample(n=int(len(item_track_df)*0.5), random_state=pd.Timestamp.now().dayofyear)
+
+        # Sample candidate track and define random state
+        frac = int(len(item_track_df)*0.5)
+        random_seed = pd.Timestamp.now().dayofyear
+        item_track_df = item_track_df.sample(n=frac, random_state=random_seed)
+
+        # Get track feature and merge with track info
         tw_track_feature_df = self._get_audio_features(sp, item_track_df['id'].tolist())
-        item_track_df = pd.merge(item_track_df,
-                                 tw_track_feature_df,
+        item_track_df = pd.merge(item_track_df, tw_track_feature_df,
                                  on='id', how='left').drop_duplicates()
 
         return item_track_df
 
     def _recommend_by_user_profile(self, user_track_df, tw_track_df, num):
-        # 將user向量和item向量合併作rescale並計算相似度
-        user_vec = user_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature'], axis=1).set_index('id').mean().as_matrix()
+        # Columns that are not be used in similarity calculation
+        drop_cols = ['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature']
+        # Create user_vector and item_vector
+        user_vec = user_track_df.drop(drop_cols, axis=1).set_index('id').mean().as_matrix()
+        item_vec = tw_track_df.drop(drop_cols, axis=1).set_index('id').as_matrix()
 
-        item_vec = tw_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature'], axis=1).set_index('id').as_matrix()
-
+        # Scale the feature
+        track_count = len(item_vec)+1
+        feature_count = len(user_vec)
+        matrix = np.append(user_vec, item_vec).reshape(track_count, feature_count)
         scaler = StandardScaler()
-        scaled_matrix = scaler.fit_transform(np.append(user_vec, item_vec).reshape(len(item_vec)+1, len(user_vec)))
+        scaled_matrix = scaler.fit_transform(matrix)
         user_vec, item_vec = scaled_matrix[0], scaled_matrix[1:]
+
+        # Calculate similarity by Euclidean
         sim_vec = np.linalg.norm(item_vec-user_vec, ord=2, axis=1)
         tw_track_df['Score'] = sim_vec
 
+        # return recommended tracks
         tw_track_df = tw_track_df.sort_values('Score', ascending=True)
         add_tracks = tw_track_df.iloc[:num]['id'].tolist()
 
         return add_tracks
 
     def _recommend_by_all_tracks(self, user_track_df, tw_track_df, num):
-        user_vec = user_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms'], axis=1).set_index('id').as_matrix()
-        item_vec = tw_track_df.drop(['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms'], axis=1).set_index('id').as_matrix()
+        # Columns that are not be used in similarity calculation
+        drop_cols = ['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature']
+        # Create user_vector and item_vector
+        user_vec = user_track_df.drop(drop_cols, axis=1).set_index('id').as_matrix()
+        item_vec = tw_track_df.drop(drop_cols, axis=1).set_index('id').as_matrix()
 
+        # Scale the feature
+        user_track_count = len(user_vec)
+        item_track_count = len(item_vec)
+        feature_count = len(user_vec[1])
+        matrix = np.append(user_vec, item_vec).reshape(user_track_count+item_track_count, feature_count)
         scaler = StandardScaler()
-        scaled_matrix = scaler.fit_transform(np.append(user_vec, item_vec).reshape(len(user_track_df)+100, len(user_vec)))
-
-        user_vec, item_vec = scaled_matrix[:len(user_track_df)], scaled_matrix[len(user_track_df):]
+        scaled_matrix = scaler.fit_transform(matrix)
+        user_vec, item_vec = scaled_matrix[:user_track_count], scaled_matrix[user_track_count:]
 
         vote_tracks = []
-        for idx in range(len(user_track_df)):
+        for idx in range(item_track_count):
+            # Calculate similarity by Euclidean
             sim_vec = np.linalg.norm(item_vec-user_vec[idx], ord=2, axis=1)
-            top_tracks = pd.Series(sim_vec, index=tw_track_df['id']).sort_values(ascending=True)[:num].index.tolist()
+
+            # vote top N recommended tracks
+            top_tracks = pd.Series(sim_vec, index=tw_track_df['id'])
+            top_tracks = top_tracks.sort_values(ascending=True)[:num].index.tolist()
             vote_tracks += top_tracks
 
+        # return top N recommended tracks
         from collections import Counter
         vote_tracks_count = Counter(vote_tracks)
         recommended_tracks = [track[0] for track in vote_tracks_count.most_common(num)]
@@ -187,7 +212,7 @@ class TrackContentBasedFiltering:
         if self.user_content == 'profile':
             recommended_tracks = self._recommend_by_user_profile(user_track_df, item_track_df, num)
         elif self.user_content == 'track':
-            recommended_tracks = self._recommend_by_user_profile(user_track_df, item_track_df, num)
+            recommended_tracks = self._recommend_by_all_tracks(user_track_df, item_track_df, num)
         else:
             pass
 
