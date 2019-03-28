@@ -206,16 +206,19 @@ class TrackContentBasedFiltering:
 
         return recommended_tracks
 
+    def _extract_genre(self, name_to_genre_records):
+        records = []
+        for record in name_to_genre_records:
+            records += record
+
+        return records
+
     def _get_follow_artists(self):
         sp = self.auth_obj.get_authorized_client('user-follow-read')
         result = sp.current_user_followed_artists()['artists']['items']
         name_to_genre_records = [list(zip([x['name']]*len(x['genres']), x['genres'])) for x in result]
 
-        records = []
-        for record in name_to_genre_records:
-            records += record
-
-        return pd.DataFrame.from_records(records, columns=['artist', 'genre'])
+        return self._extract_genre(name_to_genre_records)
 
     def recommend(self, num=10):
         user_track_df = self._get_user_track()
@@ -229,3 +232,17 @@ class TrackContentBasedFiltering:
             pass
 
         return recommended_tracks
+
+    def _recommend_by_genere(self, num=10):
+        user_artist_genre_records = self._get_follow_artists()
+
+        item_track_df = self._get_item_track()
+        sp = self.spotify_clients['user-library-read']
+        records = []
+        for artist_id in item_track_df['artist_id'].tolist():
+            result = sp.artist(artist_id)
+            records += list(zip([result['name']]*len(result['genres']), result['genres']))
+
+        genre_df = pd.DataFrame.from_records(records + user_artist_genre_records, columns=['artist', 'genre'])
+        genre_df['CNT'] = 1
+        pivot_df = pd.pivot_table(genre_df, index='artist', columns='genre', aggfunc=max)
