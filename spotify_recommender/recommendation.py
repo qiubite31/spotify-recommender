@@ -35,17 +35,18 @@ class TrackContentBasedFiltering:
 
     def _extract_track_info(self, items):
         """Extract track information"""
-        cols = ['id', 'album', 'artist', 'artist_id', 'name', 'popularity']
+        cols = ['id', 'album', 'album_id', 'artist', 'artist_id', 'name', 'popularity']
         tracks = []
         for track in items:
             track_id = track['id']
             album_name = track['album']['name']
+            album_id = track['album']['id']
             artist_name = track['artists'][0]['name']
             artist_id = track['artists'][0]['id']
             track_name = track['name']
             popularity = track['popularity']
 
-            tracks.append((track_id, album_name, artist_name, artist_id, track_name, popularity,))
+            tracks.append((track_id, album_name, album_id, artist_name, artist_id, track_name, popularity,))
 
         return pd.DataFrame(tracks, columns=cols)
 
@@ -204,6 +205,17 @@ class TrackContentBasedFiltering:
         recommended_tracks = [track[0] for track in vote_tracks_count.most_common(num)]
 
         return recommended_tracks
+
+    def _get_follow_artists(self):
+        sp = self.auth_obj.get_authorized_client('user-follow-read')
+        result = sp.current_user_followed_artists()['artists']['items']
+        name_to_genre_records = [list(zip([x['name']]*len(x['genres']), x['genres'])) for x in result]
+
+        records = []
+        for record in name_to_genre_records:
+            records += record
+
+        return pd.DataFrame.from_records(records, columns=['artist', 'genre'])
 
     def recommend(self, num=10):
         user_track_df = self._get_user_track()
