@@ -175,7 +175,7 @@ class TrackContentBasedFiltering:
 
     def _recommend_by_all_tracks(self, user_track_df, tw_track_df, num):
         # Columns that are not be used in similarity calculation
-        drop_cols = ['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature']
+        drop_cols = ['album', 'album_id', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature']
         # Create user_vector and item_vector
         user_vec = user_track_df.drop(drop_cols, axis=1).set_index('id').as_matrix()
         item_vec = tw_track_df.drop(drop_cols, axis=1).set_index('id').as_matrix()
