@@ -244,5 +244,6 @@ class TrackContentBasedFiltering:
         user_genre_df = self._get_follow_artists_genre()
         item_genre_df = self._get_item_artists_genre()
 
-        item_genre_df['CNT'] = 1
-        pivot_df = pd.pivot_table(item_genre_df, index='artist', columns='genre', aggfunc=max)
+        # item_genre_df['CNT'] = 1
+        # pivot_df = pd.pivot_table(item_genre_df, index='artist', columns='genre', aggfunc=max)
+
