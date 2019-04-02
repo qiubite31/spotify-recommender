@@ -12,7 +12,7 @@ DEFAULT_QUERYS = [{'keyword': '台灣流行樂',
                    'owner': 'Spotify'}]
 
 
-class TrackContentBasedFiltering:
+class TrackRecommender:
 
     def __init__(self, auth_obj, user_track_source='saved_track',
                  user_content='profile', querys=None):
@@ -242,8 +242,16 @@ class TrackContentBasedFiltering:
 
     def _recommend_by_genere(self, num=10):
         user_genre_df = self._get_follow_artists_genre()
-        item_genre_df = self._get_item_artists_genre()
+        # item_genre_df = self._get_item_artists_genre()
+        from mlxtend.frequent_patterns import apriori
+        from mlxtend.preprocessing import TransactionEncoder
+        te = TransactionEncoder()
 
-        # item_genre_df['CNT'] = 1
-        # pivot_df = pd.pivot_table(item_genre_df, index='artist', columns='genre', aggfunc=max)
+        user_genre_df['CNT'] = 1
+        pivot_df = pd.pivot_table(user_genre_df, index='artist', columns='genre', aggfunc=max)
+        pivot_df.columns = pivot_df.columns.droplevel(0)
+        apriori_df = apriori(pivot_df.fillna(False), min_support=0.25, use_colnames=True)
 
+    def _get_user_follower(self):
+        sp = self.spotify_clients['user-library-read']
+        result = sp.current_user()
