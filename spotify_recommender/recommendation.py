@@ -207,9 +207,18 @@ class TrackRecommender:
         return recommended_tracks
 
     def _get_follow_artists_genre(self):
-        sp = self.auth_obj.get_authorized_client('user-follow-read')
-        result = sp.current_user_followed_artists()['artists']['items']
-        name_to_genre_records = [list(zip([x['name']]*len(x['genres']), x['genres'])) for x in result]
+        # sp = self.auth_obj.get_authorized_client('user-follow-read')
+        # result = sp.current_user_followed_artists()['artists']['items']
+        # name_to_genre_records = [list(zip([x['name']]*len(x['genres']), x['genres'])) for x in result]
+        user_track_df = self._get_user_track()
+        sp = self.spotify_clients['user-library-read']
+        records = []
+        for artist_id in user_track_df['artist_id'].tolist():
+            result = sp.artist(artist_id)
+            records += list(zip([result['name']]*len(result['genres']), result['genres']))
+
+        return pd.DataFrame.from_records(records, columns=['artist', 'genre'])
+
 
         records = []
         for record in name_to_genre_records:
@@ -244,13 +253,16 @@ class TrackRecommender:
         user_genre_df = self._get_follow_artists_genre()
         # item_genre_df = self._get_item_artists_genre()
         from mlxtend.frequent_patterns import apriori
-        from mlxtend.preprocessing import TransactionEncoder
-        te = TransactionEncoder()
+        # from mlxtend.preprocessing import TransactionEncoder
+        # te = TransactionEncoder()
 
         user_genre_df['CNT'] = 1
         pivot_df = pd.pivot_table(user_genre_df, index='artist', columns='genre', aggfunc=max)
         pivot_df.columns = pivot_df.columns.droplevel(0)
-        apriori_df = apriori(pivot_df.fillna(False), min_support=0.25, use_colnames=True)
+        apriori_df = apriori(pivot_df.fillna(False), min_support=0.1, use_colnames=True)
+        apriori_df['length'] = apriori_df['itemsets'].apply(lambda x: len(x))
+        apriori_df = apriori_df[(apriori_df['length'] >= 2) & (apriori_df['support'] >= 0.1)]
+        #  print(apriori_df)
 
     def _get_user_follower(self):
         sp = self.spotify_clients['user-library-read']
