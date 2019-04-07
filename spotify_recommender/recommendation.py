@@ -242,10 +242,11 @@ class TrackRecommender:
         return recommended_tracks
 
     def _recommend_by_genere(self, num=10):
-        user_name_to_genres = self._get_artists_genre(target='user')
-        user_genres = list(user_name_to_genres.values())
         from mlxtend.frequent_patterns import apriori
         from mlxtend.preprocessing import TransactionEncoder
+
+        user_name_to_genres = self._get_artists_genre(target='user')
+        user_genres = list(user_name_to_genres.values())
         te = TransactionEncoder()
         te_ary = te.fit(user_genres).transform(user_genres)
         user_genre_df = pd.DataFrame(te_ary, columns=te.columns_)
@@ -256,7 +257,20 @@ class TrackRecommender:
         user_freq_genre = [(x[1], tuple(x[2]),) for x in apriori_df[(apriori_df['length'] >= 2) & (apriori_df['support'] >= 0.1)].to_records()]
         user_freq_genre = sorted(user_freq_genre, reverse=True)
 
+        genre_ptn_score = user_freq_genre[0][0]
+        genre_ptn = user_freq_genre[0][1]
+        genre_ptn_length = len(user_freq_genre[0][1])
         item_name_to_genres = self._get_artists_genre(target='item')
+
+        genre_score_records = []
+        from collections import Counter
+        for name, genre in item_name_to_genres.items():
+            genre_matchs = Counter(genre + list(genre_ptn))
+            genre_match_count = len([g for g in genre_matchs.items() if g[1] > 1])
+            genre_score = genre_ptn_score * (genre_match_count/genre_ptn_length)
+            genre_score_records.append((name, genre_score, ))
+
+        # print(genre_score_records)
 
 
     def _get_user_follower(self):
