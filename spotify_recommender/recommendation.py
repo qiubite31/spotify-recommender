@@ -150,7 +150,7 @@ class TrackRecommender:
 
     def _recommend_by_user_profile(self, user_track_df, tw_track_df, num):
         # Columns that are not be used in similarity calculation
-        drop_cols = ['album', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature']
+        drop_cols = ['album', 'album_id', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature']
         # Create user_vector and item_vector
         user_vec = user_track_df.drop(drop_cols, axis=1).set_index('id').mean().as_matrix()
         item_vec = tw_track_df.drop(drop_cols, axis=1).set_index('id').as_matrix()
@@ -226,7 +226,7 @@ class TrackRecommender:
             else:
                 name_to_genre[name] = genres
 
-        return name_to_genre
+        return name_to_genre, track_df
 
     def recommend(self, num=10):
         user_track_df = self._get_user_track()
@@ -245,7 +245,7 @@ class TrackRecommender:
         from mlxtend.frequent_patterns import apriori
         from mlxtend.preprocessing import TransactionEncoder
 
-        user_name_to_genres = self._get_artists_genre(target='user')
+        user_name_to_genres, user_track_df = self._get_artists_genre(target='user')
         user_genres = list(user_name_to_genres.values())
         te = TransactionEncoder()
         te_ary = te.fit(user_genres).transform(user_genres)
@@ -260,7 +260,7 @@ class TrackRecommender:
         genre_ptn_score = user_freq_genre[0][0]
         genre_ptn = user_freq_genre[0][1]
         genre_ptn_length = len(user_freq_genre[0][1])
-        item_name_to_genres = self._get_artists_genre(target='item')
+        item_name_to_genres, item_track_df = self._get_artists_genre(target='item')
 
         genre_score_records = []
         from collections import Counter
@@ -271,7 +271,6 @@ class TrackRecommender:
             genre_score_records.append((name, genre_score, ))
 
         # print(genre_score_records)
-
 
     def _get_user_follower(self):
         sp = self.spotify_clients['user-library-read']
