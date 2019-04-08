@@ -148,6 +148,10 @@ class TrackRecommender:
 
         return item_track_df
 
+    def _calculate_score(self, s):
+        s = 1/s
+        return s
+
     def _recommend_by_user_profile(self, user_track_df, tw_track_df, num):
         # Columns that are not be used in similarity calculation
         drop_cols = ['album', 'album_id', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature']
@@ -165,10 +169,11 @@ class TrackRecommender:
 
         # Calculate similarity by Euclidean
         sim_vec = np.linalg.norm(item_vec-user_vec, ord=2, axis=1)
-        tw_track_df['Score'] = sim_vec
+        tw_track_df['Distance'] = sim_vec
+        tw_track_df['Score'] = self._calculate_score(tw_track_df['Distance'])
 
         # return recommended tracks
-        tw_track_df = tw_track_df.sort_values('Score', ascending=True)
+        tw_track_df = tw_track_df.sort_values('Score', ascending=False)
         add_tracks = tw_track_df.iloc[:num]['id'].tolist()
 
         return add_tracks
@@ -196,7 +201,8 @@ class TrackRecommender:
 
             # vote top N recommended tracks
             top_tracks = pd.Series(sim_vec, index=tw_track_df['id'])
-            top_tracks = top_tracks.sort_values(ascending=True)[:num].index.tolist()
+            top_tracks = self._calculate_score(top_tracks)
+            top_tracks = top_tracks.sort_values(ascending=False)[:num].index.tolist()
             vote_tracks += top_tracks
 
         # return top N recommended tracks
