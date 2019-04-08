@@ -169,10 +169,12 @@ class TrackRecommender:
         scaled_matrix = scaler.fit_transform(matrix)
         user_vec, item_vec = scaled_matrix[0], scaled_matrix[1:]
 
-        # if genre_score pass, user in score calculation
+        # if genre_score pass, use in score calculation
         if genre_score:
             genre_score_df = pd.DataFrame(genre_score, columns=['artist_id', 'genre_score'])
             tw_track_df = pd.merge(tw_track_df, genre_score_df, on='artist_id', how='left')
+        else:
+            tw_track_df['genre_score'] = 0.0
 
         # Calculate similarity by Euclidean
         sim_vec = np.linalg.norm(item_vec-user_vec, ord=2, axis=1)
@@ -185,7 +187,7 @@ class TrackRecommender:
 
         return add_tracks
 
-    def _recommend_by_all_tracks(self, user_track_df, tw_track_df, num):
+    def _recommend_by_all_tracks(self, user_track_df, tw_track_df, genre_score=None, num=10):
         # Columns that are not be used in similarity calculation
         drop_cols = ['album', 'album_id', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature']
         # Create user_vector and item_vector
@@ -201,6 +203,13 @@ class TrackRecommender:
         scaled_matrix = scaler.fit_transform(matrix)
         user_vec, item_vec = scaled_matrix[:user_track_count], scaled_matrix[user_track_count:]
 
+        # if genre_score pass, user in score calculation
+        if genre_score:
+            genre_score_df = pd.DataFrame(genre_score, columns=['artist_id', 'genre_score'])
+            tw_track_df = pd.merge(tw_track_df, genre_score_df, on='artist_id', how='left')
+        else:
+            tw_track_df['genre_score'] = 0.0
+
         vote_tracks = []
         for idx in range(item_track_count):
             # Calculate similarity by Euclidean
@@ -208,7 +217,7 @@ class TrackRecommender:
 
             # vote top N recommended tracks
             top_tracks = pd.Series(sim_vec, index=tw_track_df['id'])
-            top_tracks = self._calculate_score(top_tracks)
+            top_tracks = self._calculate_score(top_tracks, tw_track_df['genre_score'])
             top_tracks = top_tracks.sort_values(ascending=False)[:num].index.tolist()
             vote_tracks += top_tracks
 
@@ -285,11 +294,11 @@ class TrackRecommender:
 
         # print(genre_score_records)
 
-        self.user_content = 'profile'
+        self.user_content = 'track'
         if self.user_content == 'profile':
             recommended_tracks = self._recommend_by_user_profile(user_track_df, item_track_df, genre_score=genre_score_records, num=10)
         elif self.user_content == 'track':
-            recommended_tracks = self._recommend_by_all_tracks(user_track_df, item_track_df, num=10)
+            recommended_tracks = self._recommend_by_all_tracks(user_track_df, item_track_df, genre_score=genre_score_records, num=10)
         else:
             pass
 
