@@ -148,11 +148,13 @@ class TrackRecommender:
 
         return item_track_df
 
-    def _calculate_score(self, s):
-        s = 1/s
-        return s
+    def _calculate_score(self, track_distance, genre_score=None):
+        score = 1/track_distance
+        if genre_score is not None:
+            score = score + genre_score.fillna(0.0)
+        return score
 
-    def _recommend_by_user_profile(self, user_track_df, tw_track_df, num):
+    def _recommend_by_user_profile(self, user_track_df, tw_track_df, genre_score=None, num=10):
         # Columns that are not be used in similarity calculation
         drop_cols = ['album', 'album_id', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature']
         # Create user_vector and item_vector
@@ -167,10 +169,15 @@ class TrackRecommender:
         scaled_matrix = scaler.fit_transform(matrix)
         user_vec, item_vec = scaled_matrix[0], scaled_matrix[1:]
 
+        # if genre_score pass, user in score calculation
+        if genre_score:
+            genre_score_df = pd.DataFrame(genre_score, columns=['artist_id', 'genre_score'])
+            tw_track_df = pd.merge(tw_track_df, genre_score_df, on='artist_id', how='left')
+
         # Calculate similarity by Euclidean
         sim_vec = np.linalg.norm(item_vec-user_vec, ord=2, axis=1)
         tw_track_df['Distance'] = sim_vec
-        tw_track_df['Score'] = self._calculate_score(tw_track_df['Distance'])
+        tw_track_df['Score'] = self._calculate_score(tw_track_df['Distance'], tw_track_df['genre_score'])
 
         # return recommended tracks
         tw_track_df = tw_track_df.sort_values('Score', ascending=False)
@@ -221,27 +228,27 @@ class TrackRecommender:
             track_df = self._get_item_track()
 
         sp = self.spotify_clients['user-library-read']
-        name_to_genre = {}
+        artistid_to_genre = {}
         for artist_id in track_df['artist_id'].tolist():
             result = sp.artist(artist_id)
-            name = result['name']
+            artist_id = result['id']
             genres = result['genres']
 
             if len(genres) == 0:
                 continue
             else:
-                name_to_genre[name] = genres
+                artistid_to_genre[artist_id] = genres
 
-        return name_to_genre, track_df
+        return artistid_to_genre, track_df
 
     def recommend(self, num=10):
         user_track_df = self._get_user_track()
         item_track_df = self._get_item_track()
 
         if self.user_content == 'profile':
-            recommended_tracks = self._recommend_by_user_profile(user_track_df, item_track_df, num)
+            recommended_tracks = self._recommend_by_user_profile(user_track_df, item_track_df, num=10)
         elif self.user_content == 'track':
-            recommended_tracks = self._recommend_by_all_tracks(user_track_df, item_track_df, num)
+            recommended_tracks = self._recommend_by_all_tracks(user_track_df, item_track_df, num=10)
         else:
             pass
 
@@ -251,8 +258,8 @@ class TrackRecommender:
         from mlxtend.frequent_patterns import apriori
         from mlxtend.preprocessing import TransactionEncoder
 
-        user_name_to_genres, user_track_df = self._get_artists_genre(target='user')
-        user_genres = list(user_name_to_genres.values())
+        user_id_to_genres, user_track_df = self._get_artists_genre(target='user')
+        user_genres = list(user_id_to_genres.values())
         te = TransactionEncoder()
         te_ary = te.fit(user_genres).transform(user_genres)
         user_genre_df = pd.DataFrame(te_ary, columns=te.columns_)
@@ -266,17 +273,27 @@ class TrackRecommender:
         genre_ptn_score = user_freq_genre[0][0]
         genre_ptn = user_freq_genre[0][1]
         genre_ptn_length = len(user_freq_genre[0][1])
-        item_name_to_genres, item_track_df = self._get_artists_genre(target='item')
+        item_id_to_genres, item_track_df = self._get_artists_genre(target='item')
 
         genre_score_records = []
         from collections import Counter
-        for name, genre in item_name_to_genres.items():
+        for artistid, genre in item_id_to_genres.items():
             genre_matchs = Counter(genre + list(genre_ptn))
             genre_match_count = len([g for g in genre_matchs.items() if g[1] > 1])
             genre_score = genre_ptn_score * (genre_match_count/genre_ptn_length)
-            genre_score_records.append((name, genre_score, ))
+            genre_score_records.append((artistid, genre_score, ))
 
         # print(genre_score_records)
+
+        self.user_content = 'profile'
+        if self.user_content == 'profile':
+            recommended_tracks = self._recommend_by_user_profile(user_track_df, item_track_df, genre_score=genre_score_records, num=10)
+        elif self.user_content == 'track':
+            recommended_tracks = self._recommend_by_all_tracks(user_track_df, item_track_df, num=10)
+        else:
+            pass
+
+        return recommended_tracks
 
     def _get_user_follower(self):
         sp = self.spotify_clients['user-library-read']
