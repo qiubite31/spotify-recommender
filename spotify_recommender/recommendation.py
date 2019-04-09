@@ -231,10 +231,17 @@ class TrackRecommender:
         return recommended_tracks
 
     def _get_artists_genre(self, track_df):
-        """Get user or item track and retrieve genres"""
+        """retrieve genres by artist id"""
 
         sp = self.spotify_clients['user-library-read']
         artistid_to_genre = {}
+
+        """
+        TODO
+        Get genre by each artist_id is slow,
+        but I got some problems when I use spotipy's artists function
+        """
+
         for artist_id in track_df['artist_id'].tolist():
             result = sp.artist(artist_id)
             artist_id = result['id']
@@ -251,18 +258,21 @@ class TrackRecommender:
         user_id_to_genres = self._get_artists_genre(user_track_df)
         user_genres = list(user_id_to_genres.values())
 
+        # transform format
         from mlxtend.frequent_patterns import apriori
         from mlxtend.preprocessing import TransactionEncoder
         te = TransactionEncoder()
         te_ary = te.fit(user_genres).transform(user_genres)
         user_genre_df = pd.DataFrame(te_ary, columns=te.columns_)
 
+        # use apriori to find the frequent pattern of genres
         apriori_df = apriori(user_genre_df.fillna(False), min_support=0.1, use_colnames=True)
         apriori_df['length'] = apriori_df['itemsets'].apply(lambda x: len(x))
         apriori_df = apriori_df[(apriori_df['length'] >= 1) & (apriori_df['support'] >= 0.1)]
         user_freq_genre = [(x[1], tuple(x[2]),) for x in apriori_df[(apriori_df['length'] >= 2) & (apriori_df['support'] >= 0.1)].to_records()]
         user_freq_genre = sorted(user_freq_genre, reverse=True)
 
+        # use first pattern in score calculation
         genre_ptn_score = user_freq_genre[0][0]
         genre_ptn = user_freq_genre[0][1]
         genre_ptn_length = len(user_freq_genre[0][1])
