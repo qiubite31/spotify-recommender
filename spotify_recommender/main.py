@@ -26,10 +26,11 @@ if __name__ == "__main__":
     playlist_name = 'Recommendation'
     recommender = TrackRecommender(auth,
                                    user_track_source='saved_track',
-                                   user_content='profile',
-                                   use_genre=True)
+                                   user_content='track',
+                                   use_genre=True,
+                                   n=10)
 
-    recommended_tracks = recommender.recommend(num=10)
+    recommended_tracks = recommender.recommend()
 
     sp = auth.get_authorized_client('playlist-modify-public')
     refresh_recommended_playlist(sp, auth_info['user_name'], playlist_name, recommended_tracks)

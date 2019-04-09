@@ -15,11 +15,12 @@ DEFAULT_QUERYS = [{'keyword': '台灣流行樂',
 class TrackRecommender:
 
     def __init__(self, auth_obj, user_track_source='saved_track',
-                 use_genre=False, user_content='profile', querys=None):
+                 user_content='profile', use_genre=False, n=10, querys=None):
         self.auth_obj = auth_obj
         self.user_track_source = user_track_source
-        self.use_genre = use_genre
         self.user_content = user_content
+        self.use_genre = use_genre
+        self.n = n
         self.querys = querys if querys else DEFAULT_QUERYS
         self.spotify_clients = self._authorization()
 
@@ -155,7 +156,7 @@ class TrackRecommender:
             score = score + genre_score.fillna(0.0)
         return score
 
-    def _recommend_by_user_profile(self, user_track_df, tw_track_df, genre_score=None, num=10):
+    def _recommend_by_user_profile(self, user_track_df, tw_track_df, genre_score=None):
         # Columns that are not be used in similarity calculation
         drop_cols = ['album', 'album_id', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature']
         # Create user_vector and item_vector
@@ -184,11 +185,11 @@ class TrackRecommender:
 
         # return recommended tracks
         tw_track_df = tw_track_df.sort_values('Score', ascending=False)
-        add_tracks = tw_track_df.iloc[:num]['id'].tolist()
+        add_tracks = tw_track_df.iloc[:self.n]['id'].tolist()
 
         return add_tracks
 
-    def _recommend_by_all_tracks(self, user_track_df, tw_track_df, genre_score=None, num=10):
+    def _recommend_by_all_tracks(self, user_track_df, tw_track_df, genre_score=None):
         # Columns that are not be used in similarity calculation
         drop_cols = ['album', 'album_id', 'name', 'artist', 'artist_id', 'popularity', 'duration_ms', 'time_signature']
         # Create user_vector and item_vector
@@ -219,13 +220,13 @@ class TrackRecommender:
             # vote top N recommended tracks
             top_tracks = pd.Series(sim_vec, index=tw_track_df['id'])
             top_tracks = self._calculate_score(top_tracks, tw_track_df['genre_score'])
-            top_tracks = top_tracks.sort_values(ascending=False)[:num].index.tolist()
+            top_tracks = top_tracks.sort_values(ascending=False)[:self.n].index.tolist()
             vote_tracks += top_tracks
 
         # return top N recommended tracks
         from collections import Counter
         vote_tracks_count = Counter(vote_tracks)
-        recommended_tracks = [track[0] for track in vote_tracks_count.most_common(num)]
+        recommended_tracks = [track[0] for track in vote_tracks_count.most_common(self.n)]
 
         return recommended_tracks
 
@@ -277,7 +278,7 @@ class TrackRecommender:
 
         return genre_score_records
 
-    def recommend(self, num=10):
+    def recommend(self):
         user_track_df = self._get_user_track()
         item_track_df = self._get_item_track()
 
@@ -287,9 +288,9 @@ class TrackRecommender:
             genre_score_records = None
 
         if self.user_content == 'profile':
-            recommended_tracks = self._recommend_by_user_profile(user_track_df, item_track_df, genre_score=genre_score_records, num=10)
+            recommended_tracks = self._recommend_by_user_profile(user_track_df, item_track_df, genre_score=genre_score_records)
         elif self.user_content == 'track':
-            recommended_tracks = self._recommend_by_all_tracks(user_track_df, item_track_df, genre_score=genre_score_records, num=10)
+            recommended_tracks = self._recommend_by_all_tracks(user_track_df, item_track_df, genre_score=genre_score_records)
         else:
             pass
 
