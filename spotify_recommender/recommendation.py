@@ -15,9 +15,10 @@ DEFAULT_QUERYS = [{'keyword': '台灣流行樂',
 class TrackRecommender:
 
     def __init__(self, auth_obj, user_track_source='saved_track',
-                 user_content='profile', querys=None):
+                 use_genre=False, user_content='profile', querys=None):
         self.auth_obj = auth_obj
         self.user_track_source = user_track_source
+        self.use_genre = use_genre
         self.user_content = user_content
         self.querys = querys if querys else DEFAULT_QUERYS
         self.spotify_clients = self._authorization()
@@ -228,13 +229,8 @@ class TrackRecommender:
 
         return recommended_tracks
 
-    def _get_artists_genre(self, target='user'):
+    def _get_artists_genre(self, track_df):
         """Get user or item track and retrieve genres"""
-
-        if target == 'user':
-            track_df = self._get_user_track()
-        else:
-            track_df = self._get_item_track()
 
         sp = self.spotify_clients['user-library-read']
         artistid_to_genre = {}
@@ -248,27 +244,14 @@ class TrackRecommender:
             else:
                 artistid_to_genre[artist_id] = genres
 
-        return artistid_to_genre, track_df
+        return artistid_to_genre
 
-    def recommend(self, num=10):
-        user_track_df = self._get_user_track()
-        item_track_df = self._get_item_track()
+    def _calculate_genre_score(self, user_track_df, item_track_df):
+        user_id_to_genres = self._get_artists_genre(user_track_df)
+        user_genres = list(user_id_to_genres.values())
 
-        if self.user_content == 'profile':
-            recommended_tracks = self._recommend_by_user_profile(user_track_df, item_track_df, num=10)
-        elif self.user_content == 'track':
-            recommended_tracks = self._recommend_by_all_tracks(user_track_df, item_track_df, num=10)
-        else:
-            pass
-
-        return recommended_tracks
-
-    def _recommend_by_genere(self, num=10):
         from mlxtend.frequent_patterns import apriori
         from mlxtend.preprocessing import TransactionEncoder
-
-        user_id_to_genres, user_track_df = self._get_artists_genre(target='user')
-        user_genres = list(user_id_to_genres.values())
         te = TransactionEncoder()
         te_ary = te.fit(user_genres).transform(user_genres)
         user_genre_df = pd.DataFrame(te_ary, columns=te.columns_)
@@ -282,7 +265,7 @@ class TrackRecommender:
         genre_ptn_score = user_freq_genre[0][0]
         genre_ptn = user_freq_genre[0][1]
         genre_ptn_length = len(user_freq_genre[0][1])
-        item_id_to_genres, item_track_df = self._get_artists_genre(target='item')
+        item_id_to_genres = self._get_artists_genre(item_track_df)
 
         genre_score_records = []
         from collections import Counter
@@ -292,9 +275,17 @@ class TrackRecommender:
             genre_score = genre_ptn_score * (genre_match_count/genre_ptn_length)
             genre_score_records.append((artistid, genre_score, ))
 
-        # print(genre_score_records)
+        return genre_score_records
 
-        self.user_content = 'track'
+    def recommend(self, num=10):
+        user_track_df = self._get_user_track()
+        item_track_df = self._get_item_track()
+
+        if self.use_genre:
+            genre_score_records = self._calculate_genre_score(user_track_df, item_track_df)
+        else:
+            genre_score_records = None
+
         if self.user_content == 'profile':
             recommended_tracks = self._recommend_by_user_profile(user_track_df, item_track_df, genre_score=genre_score_records, num=10)
         elif self.user_content == 'track':

@@ -4,8 +4,7 @@ import pandas as pd
 import numpy as np
 import spotipy
 import spotipy.util as util
-from sklearn.preprocessing import StandardScaler
-from recommendation import TrackContentBasedFiltering
+from recommendation import TrackRecommender
 from util import SpotifyClientAuthorization
 from util import refresh_recommended_playlist
 
@@ -25,9 +24,10 @@ if __name__ == "__main__":
     auth = SpotifyClientAuthorization(**auth_info)
 
     playlist_name = 'Recommendation'
-    recommender = TrackContentBasedFiltering(auth,
-                                             user_track_source='saved_track',
-                                             user_content='track')
+    recommender = TrackRecommender(auth,
+                                   user_track_source='saved_track',
+                                   user_content='profile',
+                                   use_genre=True)
 
     recommended_tracks = recommender.recommend(num=10)
 
