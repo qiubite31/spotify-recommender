@@ -2,3 +2,4 @@ spotipy>=2.4.4
 scikit-learn>=0.19.1
 pandas>=0.20.2
 numpy>=1.12.1
+mlxtend>=0.15.0.0
