@@ -15,12 +15,15 @@ DEFAULT_QUERYS = [{'keyword': '台灣流行樂',
 class TrackRecommender:
 
     def __init__(self, auth_obj, user_track_source='saved_track',
-                 user_content='profile', use_genre=False, n=10, querys=None):
+                 user_content='profile', use_genre=False, n=10,
+                 min_support=0.1, min_length=2, querys=None):
         self.auth_obj = auth_obj
         self.user_track_source = user_track_source
         self.user_content = user_content
         self.use_genre = use_genre
         self.n = n
+        self.min_support = min_support
+        self.min_length = min_length
         self.querys = querys if querys else DEFAULT_QUERYS
         self.spotify_clients = self._authorization()
 
@@ -266,10 +269,15 @@ class TrackRecommender:
         user_genre_df = pd.DataFrame(te_ary, columns=te.columns_)
 
         # use apriori to find the frequent pattern of genres
-        apriori_df = apriori(user_genre_df.fillna(False), min_support=0.1, use_colnames=True)
+        apriori_df = apriori(user_genre_df.fillna(False), min_support=self.min_support, use_colnames=True)
         apriori_df['length'] = apriori_df['itemsets'].apply(lambda x: len(x))
-        apriori_df = apriori_df[(apriori_df['length'] >= 1) & (apriori_df['support'] >= 0.1)]
-        user_freq_genre = [(x[1], tuple(x[2]),) for x in apriori_df[(apriori_df['length'] >= 2) & (apriori_df['support'] >= 0.1)].to_records()]
+
+        # Filter by length and support
+        min_length_mask = apriori_df['length'] >= self.min_length
+        min_support_mask = apriori_df['support'] >= self.min_support
+        apriori_records = [x for x in apriori_df[min_length_mask & min_support_mask].to_records()]
+
+        user_freq_genre = [(x[1], tuple(x[2]),) for x in apriori_records]
         user_freq_genre = sorted(user_freq_genre, reverse=True)
 
         # use first pattern in score calculation
